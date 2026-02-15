@@ -1,0 +1,161 @@
+project-root/
+├─ .gitignore
+├─ README.md
+├─ next.config.ts
+├─ next-env.d.ts
+├─ package.json
+├─ package-lock.json
+├─ postcss.config.mjs
+├─ tailwind.config.ts
+├─ tsconfig.json
+├─ eslint.config.mjs
+├─ .env
+├─ public/
+│  ├─ favicon.ico
+│  ├─ assets/
+│  │  ├─ file.svg
+│  │  ├─ globe.svg
+│  │  ├─ window.svg
+│  │  ├─ vercel.svg
+│  │  └─ next.svg
+│
+└── src/
+    ├─ app/
+    │   ├─ layout.tsx
+    │   ├─ globals.css
+    │   ├─ not-found.tsx
+    │   ├─ page.tsx                  # Home
+    │
+    │   ├─ about/page.tsx
+    │   ├─ contact/page.tsx
+    │
+    │   ├─ auth/
+    │   │   ├─ login/page.tsx
+    │   │   ├─ register/page.tsx
+    │   │   ├─ reset-password/page.tsx
+    │   │   ├─ verify/page.tsx
+    │
+    │   ├─ admin/
+    │   │   ├─ layout.tsx
+    │   │   ├─ dashboard/page.tsx
+    │   │   ├─ users/page.tsx
+    │   │   ├─ lawyers/page.tsx
+    │   │   ├─ bookings/page.tsx
+    │   │   ├─ payments/page.tsx
+    │   │   ├─ verify-lawyers/page.tsx
+    │
+    │   ├─ lawyer/
+    │   │   ├─ layout.tsx
+    │   │   ├─ dashboard/page.tsx
+    │   │   ├─ bookings/page.tsx
+    │   │   ├─ earnings/page.tsx
+    │   │   ├─ profile/page.tsx
+    │   │   ├─ session/
+    │   │   │   ├─ [sessionId]/
+    │   │   │   │   ├─ otp/page.tsx
+    │   │   │   │   ├─ call/page.tsx
+    │
+    │   ├─ user/
+    │   │   ├─ layout.tsx
+    │   │   ├─ dashboard/page.tsx
+    │   │   ├─ lawyers/page.tsx
+    │   │   ├─ bookings/page.tsx
+    │   │   ├─ profile/page.tsx
+    │   │   ├─ book/
+    │   │   │   ├─ [lawyerId]/
+    │   │   │   │   ├─ slot/page.tsx
+    │   │   │   │   ├─ confirmation/page.tsx
+    │   │   │   │   ├─ payment/page.tsx
+    │   │   ├─ bookings/
+    │   │   │   ├─ [bookingId]/
+    │   │   │   │   ├─ page.tsx
+    │   │   │   │   └─ feedback/page.tsx
+    │   │   ├─ session/
+    │   │   │   ├─ [sessionId]/
+    │   │   │   │   ├─ otp/page.tsx
+    │   │   │   │   ├─ call/page.tsx
+    │
+    │   ├─ api/
+    │   │   ├─ auth/
+    │   │   │   ├─ login/route.ts
+    │   │   │   ├─ logout/route.ts
+    │   │   │   ├─ register/route.ts
+    │   │   │   ├─ verify/route.ts
+    │   │   ├─ bookings/
+    │   │   │   ├─ route.ts
+    │   │   │   ├─ [id]/route.ts
+    │   │   ├─ lawyers/
+    │   │   │   ├─ route.ts
+    │   │   │   ├─ [id]/route.ts
+    │   │   ├─ payment/route.ts
+    │   │   ├─ session/
+    │   │   │   ├─ [id]/route.ts
+    │   │   ├─ users/
+    │   │   │   ├─ route.ts
+    │   │   │   ├─ [id]/route.ts
+    │
+    ├─ components/
+    │   ├─ cards/
+    │   │   ├─ BookingCard.tsx
+    │   │   ├─ LawyerCard.tsx
+    │   │   ├─ UserCard.tsx
+    │   ├─ forms/
+    │   │   ├─ LoginForm.tsx
+    │   │   ├─ RegisterForm.tsx
+    │   │   ├─ BookingForm.tsx
+    │   ├─ layout/
+    │   │   ├─ AdminSidebar.tsx
+    │   │   ├─ LawyerSidebar.tsx
+    │   │   ├─ UserSidebar.tsx
+    │   ├─ navbar/Navbar.tsx
+    │   ├─ ui/
+    │   │   ├─ Button.tsx
+    │   │   ├─ Input.tsx
+    │   │   ├─ Textarea.tsx
+    │   │   ├─ Modal.tsx
+    │   │   ├─ Tabs.tsx
+    │   │   ├─ toaster.tsx
+    │   ├─ video/
+    │       ├─ ChatBox.tsx
+    │       ├─ VideoPlayer.tsx
+    │
+    ├─ data/
+    │   └─ mock.ts
+    │
+    ├─ lib/
+    │   ├─ axios.ts
+    │   ├─ auth.ts
+    │   ├─ db.ts
+    │   ├─ payment.ts
+    │   ├─ socket.ts
+    │   ├─ utils.ts
+    │   └─ webrtc.ts
+    │
+    ├─ models/
+    │   └─ User.ts
+    │
+    ├─ store/
+    │   ├─ auth-store.ts
+    │   ├─ notification-store.ts
+    │   ├─ session-store.ts
+    │
+    ├─ types/
+    │   ├─ booking.d.ts
+    │   ├─ lawyer.d.ts
+    │   ├─ payment.d.ts
+    │   ├─ session.d.ts
+    │   └─ user.d.ts
+    │
+    ├─ utils/
+    │   ├─ cookie.ts
+    │   ├─ formatDate.ts
+    │   └─ generateOTP.ts
+    │
+    ├─ validators/
+    │   ├─ bookingSchema.ts
+    │   ├─ loginSchema.ts
+    │   ├─ otpSchema.ts
+    │   └─ registerSchema.ts
+    │
+    └─ providers/
+        └─ AppProviders.tsx
