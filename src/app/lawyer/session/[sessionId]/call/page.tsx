@@ -70,6 +70,7 @@ export default function LawyerCallPage({ params }: PageProps) {
   const [date, setDate] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState<number>(0); // seconds
   const [timerActive, setTimerActive] = useState(false);
+  const [slotEndTime, setSlotEndTime] = useState<Date | null>(null);
 
   // Fetch booking info for slot
   useEffect(() => {
@@ -85,7 +86,7 @@ export default function LawyerCallPage({ params }: PageProps) {
       });
   }, [bookingId]);
 
-  // Parse slot and start timer (use today's date for countdown)
+  // Parse slot end time
   useEffect(() => {
     if (!slot) return;
     // slot format: "18:34 - 19:37"
@@ -93,10 +94,17 @@ export default function LawyerCallPage({ params }: PageProps) {
     const [endHour, endMin] = end.split(':');
     const now = new Date();
     const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(endHour), parseInt(endMin), 0);
-    const diff = Math.max(0, Math.floor((endDate.getTime() - now.getTime()) / 1000));
+    setSlotEndTime(endDate);
+  }, [slot]);
+
+  // Start timer only when call is live
+  useEffect(() => {
+    if (callState !== 'live' || !slotEndTime) return;
+    const now = new Date();
+    const diff = Math.max(0, Math.floor((slotEndTime.getTime() - now.getTime()) / 1000));
     setTimeLeft(diff);
     setTimerActive(diff > 0);
-  }, [slot]);
+  }, [callState, slotEndTime]);
 
   // Countdown effect
   useEffect(() => {
@@ -330,17 +338,17 @@ export default function LawyerCallPage({ params }: PageProps) {
         </div>
 
         {/* Video container */}
-        <div className="flex-1 bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl overflow-hidden relative min-h-0">
-          <div className="grid grid-rows-2 gap-2 p-2.5 h-full">
-            <div className="min-h-0 rounded-xl overflow-hidden">
-              <VideoPlayer ref={remoteVideoRef} name={clientName} />
-            </div>
-            <div className="min-h-0 rounded-xl overflow-hidden">
-              <VideoPlayer ref={localVideoRef} muted name={lawyerName} />
-            </div>
+        <div className="flex-1 bg-slate-900 rounded-2xl overflow-hidden relative min-h-0">
+          {/* Remote video - full area */}
+          <div className="absolute inset-0">
+            <VideoPlayer ref={remoteVideoRef} name={clientName} variant="full" />
+          </div>
+          {/* Local video - PIP bottom right */}
+          <div className="absolute bottom-4 right-4 w-44 h-32 z-10 rounded-xl overflow-hidden transition-all hover:scale-105 cursor-default shadow-2xl">
+            <VideoPlayer ref={localVideoRef} muted name={lawyerName} variant="pip" />
           </div>
           {callState === 'ringing' && (
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-20 rounded-2xl">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-20 rounded-2xl">
               <div className="text-center space-y-4">
                 <div className="w-16 h-16 rounded-full border-[3px] border-white/20 border-t-green-400 animate-spin mx-auto" />
                 <p className="text-white/90 font-medium">Waiting for client&hellip;</p>
