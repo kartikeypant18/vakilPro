@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useRef, use } from 'react';
+import React, { useEffect, useRef, use, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createPeerConnection } from '@/lib/webrtc';
 import { getSocket } from '@/lib/socket';
@@ -8,8 +8,7 @@ import { ChatBox } from '@/components/video/ChatBox';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 import { useNotificationStore } from '@/store/notification-store';
 import { useSessionStore } from '@/store/session-store';
-import { MicOff, Mic, VideoIcon, VideoOff, PhoneOff } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
+import { MicOff, Mic, VideoIcon, VideoOff, PhoneOff, Clock } from 'lucide-react';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -19,6 +18,27 @@ export default function LawyerCallPage({ params }: PageProps) {
   const { sessionId } = use(params);
   const search = useSearchParams();
   const token = search?.get('token') || '';
+  
+  // State for participant names - decode from JWT token
+  const [clientName, setClientName] = useState<string>('Client');
+  const [lawyerName, setLawyerName] = useState<string>('Lawyer');
+  
+  // Decode names from JWT token
+  useEffect(() => {
+    if (token) {
+      try {
+        // Decode JWT payload (base64)
+        const payloadBase64 = token.split('.')[1];
+        const payload = JSON.parse(atob(payloadBase64));
+        console.log('JWT Payload:', payload);
+        if (payload.clientName) setClientName(payload.clientName);
+        if (payload.lawyerName) setLawyerName(payload.lawyerName);
+      } catch (err) {
+        console.error('Error decoding token:', err);
+      }
+    }
+  }, [token]);
+  
   const bookingId = sessionId;
   const localVideoRef = useRef<HTMLVideoElement | null>(null);
   const remoteVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -45,6 +65,72 @@ export default function LawyerCallPage({ params }: PageProps) {
     updateCallStatus
   } = useSessionStore();
 
+  // Timer state
+  const [slot, setSlot] = useState<string | null>(null);
+  const [date, setDate] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<number>(0); // seconds
+  const [timerActive, setTimerActive] = useState(false);
+
+  // Fetch booking info for slot
+  useEffect(() => {
+    if (!bookingId) return;
+    fetch(`/api/bookings/${bookingId}`)
+      .then(res => res.json())
+      .then(data => {
+        const booking = data?.data || data;
+        if (booking?.slot && booking?.date) {
+          setSlot(booking.slot);
+          setDate(booking.date);
+        }
+      });
+  }, [bookingId]);
+
+  // Parse slot and start timer (use today's date for countdown)
+  useEffect(() => {
+    if (!slot) return;
+    // slot format: "18:34 - 19:37"
+    const [, end] = slot.split(' - ');
+    const [endHour, endMin] = end.split(':');
+    const now = new Date();
+    const endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), parseInt(endHour), parseInt(endMin), 0);
+    const diff = Math.max(0, Math.floor((endDate.getTime() - now.getTime()) / 1000));
+    setTimeLeft(diff);
+    setTimerActive(diff > 0);
+  }, [slot]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (!timerActive || timeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          setTimerActive(false);
+          // Optionally auto-end call
+          // endCall();
+          pushToast({ variant: 'error', title: 'Call time ended', description: 'Your slot has expired.' });
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [timerActive, timeLeft]);
+
+  // Format timer
+  function formatTime(sec: number) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    if (h === 0) {
+      // Show mm:ss
+      return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+    } else {
+      // Show hh:mm
+      return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+    }
+  }
+
+  // Setup socket and peer connection
   useEffect(() => {
     if (!token) {
       pushToast({ variant: 'error', title: 'No token provided' });
@@ -58,8 +144,6 @@ export default function LawyerCallPage({ params }: PageProps) {
     socketInstance.on('connect', async () => {
       setCallState('ringing');
       pushToast({ variant: 'success', title: 'Connected to call' });
-      
-      // Create call document when user joins (if it doesn't exist)
       if (!callId) {
         try {
           const response = await fetch('/api/calls', {
@@ -88,9 +172,9 @@ export default function LawyerCallPage({ params }: PageProps) {
       console.error('Socket connect_error (lawyer):', err);
       pushToast({ variant: 'error', title: 'Connection failed', description: err?.message || String(err) });
     });
+
     const pc = createPeerConnection({
       onTrack: (event) => {
-        // Some browsers deliver MediaStream in event.streams, others only provide event.track
         let stream: MediaStream | undefined = event.streams && event.streams[0];
         if (!stream && event.track) {
           stream = new MediaStream([event.track]);
@@ -114,8 +198,6 @@ export default function LawyerCallPage({ params }: PageProps) {
         } else if (pc.connectionState === 'connected') {
           setCallState('live');
           pushToast({ variant: 'success', title: 'Connection established' });
-          
-          // Update call status in database
           if (callId) {
             try {
               await fetch(`/api/calls/${callId}`, {
@@ -132,14 +214,12 @@ export default function LawyerCallPage({ params }: PageProps) {
     });
     setPeerConnection(pc);
 
-    // Get user media
     navigator.mediaDevices.getUserMedia({ audio: true, video: true })
       .then((stream) => {
         setLocalStream(stream);
         if (localVideoRef.current) {
           localVideoRef.current.srcObject = stream;
         }
-        // Add tracks defensively: the pc may be closed if a connect_error occurred.
         stream.getTracks().forEach((track) => {
           try {
             if (pc && pc.signalingState !== 'closed') {
@@ -162,6 +242,7 @@ export default function LawyerCallPage({ params }: PageProps) {
         await pc.setLocalDescription(answer);
         socketInstance.emit('call:answer', pc.localDescription);
         console.log('Lawyer sent answer');
+        pushToast({ variant: 'success', title: 'Call incoming...' });
       } catch (err) {
         console.error('Error handling offer:', err);
       }
@@ -171,6 +252,13 @@ export default function LawyerCallPage({ params }: PageProps) {
       try {
         await pc.setRemoteDescription(payload as RTCSessionDescriptionInit);
         setCallState('live');
+        if (callId) {
+          await fetch(`/api/calls/${callId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status: 'active' }),
+          });
+        }
         await updateCallStatus('live');
         pushToast({ variant: 'success', title: 'Call connected' });
       } catch (err) {
@@ -206,81 +294,123 @@ export default function LawyerCallPage({ params }: PageProps) {
   }, [callId]);
 
   return (
-    <section className="grid gap-6 lg:grid-cols-[2fr,1fr]">
-      <div className="space-y-4">
-        <header>
-          <p className="text-sm uppercase text-primary">Secure call</p>
-          <h1 className="font-display text-3xl text-accent">Session {sessionId}</h1>
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${
-              callState === 'live' ? 'bg-green-500' : 
-              callState === 'ringing' ? 'bg-yellow-500' : 'bg-gray-400'
+    <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-5rem)]">
+      {/* Main video section */}
+      <div className="flex-1 flex flex-col min-h-0">
+        {/* Status bar */}
+        <div className="flex items-center justify-between mb-3 px-1">
+          <div className="flex items-center gap-3">
+            <div className={`w-2.5 h-2.5 rounded-full ${
+              callState === 'live' ? 'bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]' : 
+              callState === 'ringing' ? 'bg-yellow-500 shadow-[0_0_8px_rgba(234,179,8,0.6)] animate-pulse' : 'bg-gray-400'
             }`} />
-            <p className="text-slate-500">
-              {callState === 'live' ? 'Connected - Share evidence and notes' : 
-               callState === 'ringing' ? 'Connecting...' : 'Waiting for connection'}
-            </p>
+            <div>
+              <h2 className="font-semibold text-gray-800 text-sm">
+                {callState === 'live' ? 'Call Connected' : 
+                 callState === 'ringing' ? 'Ready to start' : 'Waiting for connection'}
+              </h2>
+              <p className="text-xs text-gray-400">Encrypted WebRTC &bull; {sessionId.slice(0, 8)}&hellip;</p>
+            </div>
           </div>
-        </header>
-        <div className="space-y-4">
-          <VideoPlayer ref={remoteVideoRef} />
-          <VideoPlayer ref={localVideoRef} muted />
-        </div>
-        <div className="flex flex-wrap items-center justify-center gap-4">
-          <Button variant="ghost" size="icon" onClick={toggleMute} aria-label="Toggle microphone">
-            {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
-          </Button>
-          <Button variant="ghost" size="icon" onClick={toggleCamera} aria-label="Toggle camera">
-            {cameraOff ? <VideoOff className="h-5 w-5" /> : <VideoIcon className="h-5 w-5" />}
-          </Button>
-          <Button variant="outline" className="bg-rose-500 text-white" size="icon" onClick={endCall} aria-label="End call">
-            <PhoneOff className="h-5 w-5" />
-          </Button>
-          {callState === 'ringing' && (
-            <Button onClick={async () => {
-              if (!peerConnection || !socket) return;
-              try {
-                pushToast({ variant: 'info', title: 'Initiating call...' });
-                
-                // Create call record in database when call actually starts
-                if (!callId) {
-                  const response = await fetch('/api/calls', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      bookingId: sessionId,
-                      roomId: `booking:${sessionId}`,
-                    }),
-                  });
-                  if (response.ok) {
-                    const { data } = await response.json();
-                    setCallId(data._id);
-                  }
-                }
-                
-                const offer = await peerConnection.createOffer();
-                await peerConnection.setLocalDescription(offer);
-                socket.emit('call:offer', peerConnection.localDescription);
-                console.log('Lawyer sent offer');
-              } catch (err) {
-                console.error('Error creating offer:', err);
-                pushToast({ variant: 'error', title: 'Failed to start call' });
-              }
-            }} className="px-4 py-2 bg-green-500 text-white rounded">
-              Start Call
-            </Button>
+          {timerActive && (
+            <div className={`flex items-center gap-2.5 rounded-full px-4 py-2 border transition-colors ${
+              timeLeft < 300 ? 'bg-red-50 border-red-200' : 
+              timeLeft < 900 ? 'bg-amber-50 border-amber-200' : 'bg-emerald-50 border-emerald-200'
+            }`}>
+              <Clock className={`h-4 w-4 ${
+                timeLeft < 300 ? 'text-red-500' : 
+                timeLeft < 900 ? 'text-amber-500' : 'text-emerald-500'
+              }`} />
+              <span className={`font-mono font-bold text-lg tracking-tight ${
+                timeLeft < 300 ? 'text-red-600' : 
+                timeLeft < 900 ? 'text-amber-600' : 'text-emerald-600'
+              }`}>{formatTime(timeLeft)}</span>
+            </div>
           )}
         </div>
+
+        {/* Video container */}
+        <div className="flex-1 bg-gradient-to-b from-slate-800 to-slate-900 rounded-2xl overflow-hidden relative min-h-0">
+          <div className="grid grid-rows-2 gap-2 p-2.5 h-full">
+            <div className="min-h-0 rounded-xl overflow-hidden">
+              <VideoPlayer ref={remoteVideoRef} name={clientName} />
+            </div>
+            <div className="min-h-0 rounded-xl overflow-hidden">
+              <VideoPlayer ref={localVideoRef} muted name={lawyerName} />
+            </div>
+          </div>
+          {callState === 'ringing' && (
+            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-20 rounded-2xl">
+              <div className="text-center space-y-4">
+                <div className="w-16 h-16 rounded-full border-[3px] border-white/20 border-t-green-400 animate-spin mx-auto" />
+                <p className="text-white/90 font-medium">Waiting for client&hellip;</p>
+                <button onClick={async () => {
+                  if (!peerConnection || !socket) return;
+                  try {
+                    pushToast({ variant: 'info', title: 'Initiating call...' });
+                    if (!callId) {
+                      const response = await fetch('/api/calls', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          bookingId: sessionId,
+                          roomId: `booking:${sessionId}`,
+                        }),
+                      });
+                      if (response.ok) {
+                        const { data } = await response.json();
+                        setCallId(data._id);
+                      }
+                    }
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    socket.emit('call:offer', peerConnection.localDescription);
+                    console.log('Lawyer sent offer');
+                  } catch (err) {
+                    console.error('Error creating offer:', err);
+                    pushToast({ variant: 'error', title: 'Failed to start call' });
+                  }
+                }} className="px-6 py-2.5 bg-green-500 hover:bg-green-600 text-white font-medium rounded-full transition-all shadow-lg shadow-green-500/30">
+                  Start Call
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Control bar */}
+        <div className="flex justify-center py-3">
+          <div className="inline-flex items-center gap-1.5 bg-slate-800 rounded-full px-4 py-2.5 shadow-xl shadow-slate-900/20">
+            <button onClick={toggleMute} className={`p-3 rounded-full transition-all duration-200 ${
+              muted ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`} aria-label="Toggle microphone">
+              {muted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
+            </button>
+            <button onClick={toggleCamera} className={`p-3 rounded-full transition-all duration-200 ${
+              cameraOff ? 'bg-red-500 text-white shadow-lg shadow-red-500/30' : 'text-white/80 hover:bg-white/10 hover:text-white'
+            }`} aria-label="Toggle camera">
+              {cameraOff ? <VideoOff className="h-5 w-5" /> : <VideoIcon className="h-5 w-5" />}
+            </button>
+            <div className="w-px h-6 bg-slate-600 mx-1.5" />
+            <button onClick={endCall} className="p-3 rounded-full bg-red-500 hover:bg-red-600 text-white transition-all duration-200 shadow-lg shadow-red-500/30" aria-label="End call">
+              <PhoneOff className="h-5 w-5" />
+            </button>
+          </div>
+        </div>
       </div>
-      <div className="space-y-4">
-        <Card>
+
+      {/* Sidebar */}
+      <div className="w-full lg:w-80 flex flex-col gap-3 min-h-0">
+        <Card className="shadow-none border-slate-100">
           <CardHeader>
             <CardTitle>Client notes</CardTitle>
             <CardDescription>Keep track of instructions.</CardDescription>
           </CardHeader>
         </Card>
-        <ChatBox role="lawyer" />
+        <div className="flex-1 min-h-0">
+          <ChatBox role="lawyer" />
+        </div>
       </div>
-    </section>
+    </div>
   );
 }

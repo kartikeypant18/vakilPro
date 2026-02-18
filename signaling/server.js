@@ -45,8 +45,12 @@ io.on('connection', (socket) => {
   const room = `booking:${bookingId}`;
   socket.join(room);
   
-  console.log(`User ${socket.user.id} joined room: ${room}`);
-  socket.to(room).emit('user:joined', { userId: socket.user.id, role: socket.user.role });
+  // Get user ID based on role
+  const userId = socket.user.role === 'lawyer' ? socket.user.lawyerId : socket.user.clientId;
+  const userName = socket.user.name || socket.user.role;
+  
+  console.log(`User ${userName} (${userId}) joined room: ${room}`);
+  socket.to(room).emit('user:joined', { userId, role: socket.user.role, name: userName });
 
   socket.on('call:offer', (payload) => {
     socket.to(room).emit('call:offer', payload);
@@ -62,6 +66,11 @@ io.on('connection', (socket) => {
 
   socket.on('call:hangup', (payload) => {
     socket.to(room).emit('call:hangup', payload);
+  });
+
+  // Chat message forwarding
+  socket.on('chat:message', (payload) => {
+    socket.to(room).emit('chat:message', payload);
   });
 
   socket.on('disconnect', () => {

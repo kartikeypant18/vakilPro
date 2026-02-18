@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import { connectToDatabase } from '@/lib/db';
 import { BookingModel } from '@/models/Booking';
-import { CallModel } from '@/models/Call';
+import { UserModel } from '@/models/User';
+import { LawyerModel } from '@/models/Lawyer';
 import { verifyAuth } from '@/lib/apiAuth';
 
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -32,17 +33,41 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const user = await verifyAuth(request);
   const isLawyer = user?.role === 'lawyer';
 
+  // Get names for JWT
+  let clientName = 'Client';
+  let lawyerName = 'Lawyer';
+  
+  try {
+    const clientUser = await UserModel.findById(booking.clientId).lean();
+    console.log('Client user found:', clientUser);
+    if (clientUser) clientName = clientUser.name;
+    
+    const lawyer = await LawyerModel.findById(booking.lawyerId).lean() as any;
+    console.log('Lawyer found:', lawyer);
+    if (lawyer) {
+      const lawyerUser = await UserModel.findById(lawyer.userId).lean();
+      console.log('Lawyer user found:', lawyerUser);
+      if (lawyerUser) lawyerName = lawyerUser.name;
+    }
+    console.log('Final names - Client:', clientName, 'Lawyer:', lawyerName);
+  } catch (err) {
+    console.error('Error fetching names for JWT:', err);
+  }
+
   if (!JWT_SECRET) {
     return NextResponse.json({ error: 'JWT secret not configured' }, { status: 500 });
   }
 
-  // Create JWT for call room auth
+  // Create JWT for call room auth - include names
   const token = jwt.sign(
     {
       bookingId: booking._id?.toString?.() ?? booking._id,
       clientId: booking.clientId?.toString?.() ?? booking.clientId,
       lawyerId: booking.lawyerId?.toString?.() ?? booking.lawyerId,
       role: user?.role || 'client',
+      name: user?.name || (isLawyer ? lawyerName : clientName),
+      clientName,
+      lawyerName,
     },
     JWT_SECRET,
     { expiresIn: '1h' }
