@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/store/auth-store';
 import { useNotificationStore } from '@/store/notification-store';
-import { User, Mail, Lock, Loader2 } from 'lucide-react';
+import { User, Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 
 interface RegisterFormProps {
   role: 'client' | 'lawyer';
@@ -18,6 +18,7 @@ export function RegisterForm({ role }: RegisterFormProps) {
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState({ name: '', email: '', password: '' });
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setForm((prev) => ({ ...prev, [event.target.name]: event.target.value }));
@@ -81,12 +82,21 @@ export function RegisterForm({ role }: RegisterFormProps) {
           <Input
             required
             name="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="Create a strong password"
             value={form.password}
             onChange={handleChange}
-            className="pl-10"
+            className="pl-10 pr-12"
           />
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/20"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
+          </button>
         </div>
         <p className="text-xs text-slate-500">Must be at least 8 characters</p>
       </div>

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useAuthStore } from '@/store/auth-store';
 import { useNotificationStore } from '@/store/notification-store';
-import { Mail, Lock, Loader2 } from 'lucide-react';
+import { Mail, Lock, Loader2, Eye, EyeOff } from 'lucide-react';
 
 interface LoginFormProps {
   role: 'client' | 'lawyer' | 'admin';
@@ -17,6 +17,7 @@ export function LoginForm({ role }: LoginFormProps) {
   const login = useAuthStore((state) => state.login);
   const [form, setForm] = useState({ email: '', password: '' });
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const pushToast = useNotificationStore((state) => state.pushToast);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -64,12 +65,21 @@ export function LoginForm({ role }: LoginFormProps) {
           <Input
             required
             name="password"
-            type="password"
+            type={showPassword ? 'text' : 'password'}
             placeholder="••••••••"
             value={form.password}
             onChange={handleChange}
-            className="pl-10"
+            className="pl-10 pr-12"
           />
+          <button
+            type="button"
+            tabIndex={-1}
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded focus:outline-none focus:ring-2 focus:ring-primary/20"
+            aria-label={showPassword ? 'Hide password' : 'Show password'}
+          >
+            {showPassword ? <EyeOff className="w-5 h-5 text-slate-400" /> : <Eye className="w-5 h-5 text-slate-400" />}
+          </button>
         </div>
       </div>
       <Button className="w-full h-11" type="submit" disabled={loading}>
